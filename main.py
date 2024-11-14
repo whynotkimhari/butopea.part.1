@@ -31,8 +31,16 @@ def main():
       END AS availability,
       CONCAT(price, ' HUF') AS price,
       m.name AS brand,
-      'new' AS condition
-    FROM product p, product_description pd, product_image pi, manufacturer m
+      'new' AS condition,
+
+      pi.product_image_id AS pi_id
+      
+    FROM 
+      product p, 
+      product_description pd, 
+      product_image pi, 
+      manufacturer m
+      
     WHERE
       p.manufacturer_id = m.manufacturer_id AND
       p.product_id = pd.product_id AND
@@ -46,38 +54,30 @@ def main():
       LENGTH(m.name) <= 70;
   """
 
-  results = fetch(DB_PATH, QUERY)
+  products = fetch(DB_PATH, QUERY)
 
-  products = []
-
-  for result in results:
-    product = {
-      "id":                     result[0],
-      "title":                  result[1],
-      "description":            result[2],
-      "link":                   result[3],
-      "image_link":             result[4],
-      "additional_image_links": [],
-      "availability":           result[5],
-      "price":                  result[6],
-      "brand":                  result[7],
-      "condition":              result[8],
-    }
-    
+  for product in products:
     # Additional images must be loaded in their respective sort orders
     # Submit up to 10 additional product images by including this attribute multiple times.
-    product['additional_image_links'] = list(map(lambda z: z[0], fetch(
+    product['additional_image_links'] = list(
+      map(lambda row: row['additional_image_link'], fetch(
       DB_PATH, 
       query=f"""
-        SELECT image, sort_order 
+        SELECT 
+          CONCAT('https://butopea.com/', image) AS additional_image_link, 
+          sort_order 
         FROM product_image 
-        WHERE product_id = '{product["id"]}'
+        WHERE 
+          product_id = '{product["id"]}' AND
+          product_image_id != '{product["pi_id"]}'
         ORDER BY 2 ASC
         LIMIT 10;
       """
-    )))
+      ))
+    )
 
-    products.append(product)
+    # We won't use this in XML file
+    del product["pi_id"]
 
   gen(products, out_path='./feed.xml', pprint=True)
 
