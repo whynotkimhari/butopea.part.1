@@ -28,6 +28,15 @@ def main():
     # LENGTH(title) <= 150
     # LENGTH(description) <= 5000
     # LENGTH(brand) <= 70
+
+  # The problem comes when joining tables, one product can have
+  # more than 1 image, so this will cause duplicated products
+  # when we convert it into xml file
+  # Example:
+  #   product1 -> image_link: 1, additional_image_link: [2, 3, 4]
+  #   product1 -> image_link: 2, additional_image_link: [1, 3, 4]
+  #   product1 -> image_link: 3, additional_image_link: [1, 2, 4]
+  #   product1 -> image_link: 4, additional_image_link: [1, 2, 3]
   QUERY = """
     SELECT
       p.product_id AS id,
@@ -43,19 +52,37 @@ def main():
       CONCAT(price, ' HUF') AS price,
       m.name AS brand,
       'new' AS condition,
-
       pi.product_image_id AS pi_id
-      
-    FROM 
-      product p, 
-      product_description pd, 
-      product_image pi, 
-      manufacturer m
+
+    FROM
+      product p,
+      product_description pd,
+      product_image pi,
+      manufacturer m,
+      (SELECT
+          p.product_id AS product_id,
+          pi.product_image_id AS product_image_id
+          
+        FROM 
+          product p,
+          product_image pi
+          
+        WHERE
+          p.product_id = pi.product_id
+
+        GROUP BY
+          p.product_id
+
+        HAVING 
+          pi.sort_order = MIN(pi.sort_order)
+        ) sub_query
       
     WHERE
       p.manufacturer_id = m.manufacturer_id AND
       p.product_id = pd.product_id AND
       p.product_id = pi.product_id AND
+      p.product_id = sub_query.product_id AND
+      pi.product_image_id = sub_query.product_image_id AND
 
       LENGTH(p.product_id) <= 50 AND
       LENGTH(pd.name) <= 150 AND
@@ -68,6 +95,7 @@ def main():
   products = fetch(DB_PATH, QUERY)
 
   for product in products:
+    # We will exclude the first image since it is the 'image_link' alreadys
     # Additional images must be loaded in their respective sort orders
     # Submit up to 10 additional product images by including this attribute multiple times.
     product['additional_image_links'] = list(
@@ -77,18 +105,19 @@ def main():
         SELECT 
           CONCAT('https://butopea.com/', image) AS additional_image_link, 
           sort_order 
-        FROM product_image 
+
+        FROM 
+          product_image 
+
         WHERE 
-          product_id = '{product["id"]}' AND
-          product_image_id != '{product["pi_id"]}'
-        ORDER BY 2 ASC
-        LIMIT 10;
+          product_id = '{product["id"]}'
+
+        ORDER BY sort_order ASC
+        LIMIT 10
+        OFFSET 1;
       """
       ))
     )
-
-    # We won't use this in XML file
-    del product["pi_id"]
 
   gen(products, out_path=OUT_PATH, pprint=PPRINT)
 
