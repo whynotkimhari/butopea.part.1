@@ -1,0 +1,35 @@
+input
+----
+
+manufacturer          -> (manufacturer_id, name)
+product               -> (product_id, model, ean, quantity, image, manufacturer_id, price, status)
+product_description   -> (product_id, name, description)
+product_image         -> (product_image_id, product_id, image, sort_order)
+
+output
+---
+
+(
+  product.status != 0 && 
+  product.price != 0 &&
+  product.product_id.length <= 50 &&
+  product_description.name.length <= 150 &&
+  product_description.description.length <= 5000 &&
+  manufacturer.name.length <= 70
+) && {
+  id => product.product_id, 
+  title => product_description.name, 
+  description => product_description.description,
+  link => 'https://butopea.com/p/' + product.product_id,
+  image_link => 'https://butopea.com/' + product_image.image,
+
+  additional_image_link 
+    => (SELECT COUNT(*) FROM product_image GROUP BY product_id WHERE product_id = id;) == 0 
+      ? NULL 
+      : [(SELECT image, sort_order FROM product_image WHERE product_id = id ORDER BY 2 ASC;).image],
+
+  availability => product.quantity > 0,
+  price => product.price HUF, // Include value added tax (VAT) or Goods and Services Tax (GST) in the price.
+  brand => manufacturer.name,
+  condition => 'new'
+}
