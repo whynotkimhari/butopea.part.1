@@ -1,9 +1,20 @@
+import sys
 from db import fetch
 from my_xml import gen
 
 def main():
 
-  DB_PATH = './data.sqlite'
+  if len(sys.argv) < 3:
+    print("Usage: python ./main.py <db_path> <out_path> <pretty print: True/False (optional)>")
+    sys.exit(1)
+  
+  if len(sys.argv) > 3 and sys.argv[3].lower() not in ['true', 'false']:
+    print("pretty print must be either true or false!")
+    sys.exit(1)
+
+  DB_PATH = sys.argv[1]
+  OUT_PATH = sys.argv[2]
+  PPRINT = sys.argv[3].lower() == 'true'
 
   # I think these are important ones:
     # Disabled products (with status 0) must not be included in the feed
@@ -79,7 +90,7 @@ def main():
     # We won't use this in XML file
     del product["pi_id"]
 
-  gen(products, out_path='./feed.xml', pprint=True)
+  gen(products, out_path=OUT_PATH, pprint=PPRINT)
 
 if __name__ == '__main__':
   main()
